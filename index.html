@@ -16,7 +16,7 @@
         .vec { position: relative; display: inline-block; }
         .vec::after { content: '→'; position: absolute; top: -0.3em; left: 0; width: 100%; text-align: center; font-size: 0.6em; transform: scaleX(0.8); }
         
-        /* --- LICENSE --- */
+        /* --- LICENCIA Y CONTADOR --- */
         .licencia-bloque { 
             position: absolute; 
             bottom: 5px; 
@@ -30,6 +30,7 @@
         }
         .licencia-bloque a { color: #0284c7; text-decoration: none; font-weight: bold; }
         .licencia-bloque a:hover { text-decoration: underline; }
+        .badge-container { margin-bottom: 2px; display: flex; justify-content: center; }
     </style>
 </head>
 <body class="bg-slate-100 h-screen w-full flex flex-col p-4 font-sans text-slate-800 overflow-hidden">
@@ -56,13 +57,14 @@
 
     <div class="flex flex-1 gap-4 overflow-hidden">
         
+        <!-- PANEL IZQUIERDO -->
         <aside class="w-1/4 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col">
             <div class="p-3 border-b border-slate-100 bg-slate-50 rounded-t-xl flex justify-between items-center">
                 <h2 class="font-black text-slate-400 uppercase text-xs tracking-widest">Problem Data</h2>
             </div>
             <div id="data-panel" class="p-3 space-y-3 overflow-y-auto flex-1 custom-scroll text-base leading-tight text-slate-600"></div>
             <div class="p-4 bg-slate-50 rounded-b-xl border-t border-slate-100 space-y-2">
-                <button id="btn-play" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-black text-sm uppercase tracking-widest shadow-md transition-all">
+                <button id="btn-play" disabled class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white py-3 rounded-xl font-black text-sm uppercase tracking-widest shadow-md transition-all">
                     ▶ Simulate Collision
                 </button>
                 <button id="btn-next-step" class="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white py-3 rounded-xl font-black text-sm uppercase tracking-widest shadow-md transition-all">
@@ -71,17 +73,14 @@
             </div>
         </aside>
 
+        <!-- CANVAS CENTRAL -->
         <main id="canvas-container" class="flex-1 bg-white rounded-xl border border-slate-200 flex flex-col relative overflow-hidden shadow-inner">
-            <div class="absolute top-4 left-4 z-10">
-                <div id="step-info" class="bg-white/90 backdrop-blur border border-slate-200 px-4 py-2 rounded-lg shadow-sm">
-                    <p id="step-text" class="text-base font-black text-slate-800 uppercase tracking-tight">Ready to start</p>
-                </div>
-            </div>
+            
             <canvas id="mainCanvas" class="w-full h-full"></canvas>
 
-            <!-- License and Counter -->
+            <!-- Bloque de Licencia y Contador (En la base del Canvas) -->
             <div class="licencia-bloque">
-                <div style="margin-bottom: 2px;">
+                <div class="badge-container">
                     <img src="https://visitor-badge.laobi.icu/badge?page_id=EAG1964.phychem.lab&left_text=Visits&left_color=gray&right_color=blue" alt="Visits" style="display: inline-block;">
                 </div>
                 <p style="margin: 0;">
@@ -92,6 +91,7 @@
             </div>
         </main>
 
+        <!-- PANEL DERECHO -->
         <aside class="w-1/3 bg-slate-900 text-slate-300 rounded-xl shadow-2xl flex flex-col border border-slate-800">
             <div class="p-4 border-b border-slate-800 bg-slate-950 rounded-t-xl flex justify-between items-center">
                 <h2 class="font-bold text-indigo-400 uppercase text-xs tracking-widest">Algebraic Calculations</h2>
@@ -108,7 +108,6 @@
         const btnNext = document.getElementById('btn-next-step');
         const btnPlay = document.getElementById('btn-play');
         const btnGenerate = document.getElementById('btn-generate');
-        const stepText = document.getElementById('step-text');
         const typeSelect = document.getElementById('type-select');
 
         let currentStep = 0;
@@ -136,17 +135,30 @@
             return parseFloat((Math.random() * (max - min) + min).toFixed(dec));
         }
 
+        function toDeg(rad) {
+            return (rad * 180 / Math.PI).toFixed(1);
+        }
+
         function generate() {
             cancelAnimationFrame(animationId);
             isSimulating = false;
             collisionOccurred = false;
             
-            const type = typeSelect.value;
+            const selectedType = typeSelect.value;
+            let type = selectedType;
+            
+            // Si elige "Choque Elástico", elegimos aleatoriamente una de las 5 variantes
+            if (selectedType === 'elastic') {
+                const subTypes = ['base', 'forense', 'angulos', 'masa', 'masa_comp'];
+                type = subTypes[Math.floor(Math.random() * subTypes.length)];
+            }
+            
             const m1 = rnd(1.5, 4); 
             const m2 = rnd(2, 6);
             const v1 = rnd(4, 7);
             const v2 = rnd(2, 5);
             
+            // Ángulos iniciales ampliados al máximo
             const a1 = rnd(-85, 85, 1);
             const a2 = rnd(95, 265, 1);
 
@@ -161,64 +173,97 @@
             const ptx = (m1 * v1x) + (m2 * v2x);
             const pty = (m1 * v1y) + (m2 * v2y);
 
-            let v1f, a1f, v1fx, v1fy, v2fx, v2fy;
+            let v1f, a1f, v1fx, v1fy, v2fx, v2fy, v2f, a2f;
 
             if(type === 'inelastic') {
                 v1fx = v2fx = ptx / (m1 + m2);
                 v1fy = v2fy = pty / (m1 + m2);
-                v1f = Math.hypot(v1fx, v1fy);
-                a1f = Math.atan2(v1fy, v1fx);
+                v1f = v2f = Math.hypot(v1fx, v1fy);
+                a1f = a2f = Math.atan2(v1fy, v1fx);
             } else {
+                // Choques elásticos: Generar ángulo de salida de partícula 1
                 const deg1f = rnd(-175, 175, 1);
                 a1f = deg1f * Math.PI / 180; 
                 v1f = rnd(v1 * 0.4, v1 * 0.8); 
                 v1fx = v1f * Math.cos(a1f);
                 v1fy = v1f * Math.sin(a1f);
+                
                 v2fx = (ptx - m1 * v1fx) / m2;
                 v2fy = (pty - m1 * v1fy) / m2;
+                v2f = Math.hypot(v2fx, v2fy);
+                a2f = Math.atan2(v2fy, v2fx);
             }
 
             p = { 
                 type, m1, m2, v1, v2, a1, a2, rad1, rad2, v1x, v1y, v2x, v2y, 
-                ptx, pty, v1fx, v1fy, v2fx, v2fy,
-                v1f, a1f,
-                v2f: Math.hypot(v2fx, v2fy),
-                a2f: Math.atan2(v2fy, v2fx)
+                ptx, pty, v1fx, v1fy, v2fx, v2fy, v1f, a1f, v2f, a2f
             };
 
             currentStep = 0;
             btnNext.disabled = false;
             btnNext.textContent = "Step 1. Register data";
+            btnPlay.disabled = true;
             algebraPanel.innerHTML = '';
             
             updateDataPanel(); 
             resetParticles();
             drawStatic();
-            stepText.textContent = "Exercise Generated";
             btnPlay.textContent = "▶ Simulate Collision";
         }
 
         function updateDataPanel() {
             if (!p) return;
+            
+            let p1Text = `m<sub>1</sub> = ${p.m1} kg; &nbsp; v<sub>1</sub> = ${p.v1} m/s<br>&theta;<sub>1</sub> = ${p.a1}&deg;`;
+            let p2Text = `m<sub>2</sub> = ${p.m2} kg; &nbsp; v<sub>2</sub> = ${p.v2} m/s<br>&theta;<sub>2</sub> = ${p.a2}&deg;`;
+            let out1Text = `v'<sub>1</sub> = ${p.v1f.toFixed(2)} m/s; &nbsp; &theta;'<sub>1</sub> = ${toDeg(p.a1f)}&deg;`;
+            let out2Text = `v'<sub>2</sub> = ${p.v2f.toFixed(2)} m/s; &nbsp; &theta;'<sub>2</sub> = ${toDeg(p.a2f)}&deg;`;
+            
+            let challengeText = "";
+
+            // Ocultar datos y configurar título según el modo
+            if (p.type === 'forense') {
+                p2Text = `m<sub>2</sub> = ${p.m2} kg; &nbsp; v<sub>2</sub> = <b>?</b><br>&theta;<sub>2</sub> = <b>?</b>`;
+                challengeText = "CHALLENGE: Find Input Vector (P2)";
+            } else if (p.type === 'angulos') {
+                out1Text = `v'<sub>1</sub> = <b>?</b> ; &nbsp; &theta;'<sub>1</sub> = ${toDeg(p.a1f)}&deg;`;
+                out2Text = `v'<sub>2</sub> = <b>?</b> ; &nbsp; &theta;'<sub>2</sub> = ${toDeg(p.a2f)}&deg;`;
+                challengeText = "CHALLENGE: Find Final Velocities";
+            } else if (p.type === 'masa') {
+                p2Text = `m<sub>2</sub> = <b>?</b> ; &nbsp; v<sub>2</sub> = ${p.v2} m/s<br>&theta;<sub>2</sub> = ${p.a2}&deg;`;
+                challengeText = "CHALLENGE: Find Mass (P2)";
+            } else if (p.type === 'masa_comp') {
+                p2Text = `m<sub>2</sub> = <b>?</b> ; &nbsp; v<sub>2</sub> = ${p.v2} m/s<br>&theta;<sub>2</sub> = ${p.a2}&deg;`;
+                out2Text = `v'<sub>2x</sub> = <b>?</b> ; &nbsp; v'<sub>2y</sub> = ${p.v2fy.toFixed(2)} m/s<br>v'<sub>2</sub> = <b>?</b> ; &nbsp; &theta;'<sub>2</sub> = <b>?</b>`;
+                challengeText = "CHALLENGE: Find Mass and X Component (P2)";
+            } else if (p.type === 'base') {
+                out2Text = `v'<sub>2</sub> = <b>?</b> ; &nbsp; &theta;'<sub>2</sub> = <b>?</b>`;
+                challengeText = "CHALLENGE: Find Output Vector (P2)";
+            } else {
+                challengeText = "CHALLENGE: Find Common Velocity";
+            }
+
             dataPanel.innerHTML = `
+                <div class="bg-indigo-50 border border-indigo-200 p-2 rounded-lg shadow-sm text-indigo-800 text-xs font-bold uppercase text-center mb-2">
+                    ${challengeText}
+                </div>
                 <div class="p-3 bg-red-50 border border-red-200 rounded-lg shadow-sm">
-                    <p class="font-bold text-red-600 underline uppercase text-sm mb-1">Particle 1</p>
-                    m<sub>1</sub> = ${p.m1} kg; &nbsp; v<sub>1</sub> = ${p.v1} m/s<br>
-                    &theta;<sub>1</sub> = ${p.a1}&deg;
+                    <p class="font-bold text-red-600 underline uppercase text-sm mb-1">Particle 1 (Initial)</p>
+                    ${p1Text}
                 </div>
                 <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg shadow-sm">
-                    <p class="font-bold text-blue-600 underline uppercase text-sm mb-1">Particle 2</p>
-                    m<sub>2</sub> = ${p.m2} kg; &nbsp; v<sub>2</sub> = ${p.v2} m/s<br>
-                    &theta;<sub>2</sub> = ${p.a2}&deg;
+                    <p class="font-bold text-blue-600 underline uppercase text-sm mb-1">Particle 2 (Initial)</p>
+                    ${p2Text}
                 </div>
-                ${p.type === 'elastic' ? `
-                <div class="p-3 bg-amber-50 border border-amber-300 rounded-lg shadow-sm">
-                    <p class="font-bold text-amber-700 underline uppercase text-sm mb-1">Output Data (Particle 1)</p>
-                    v'<sub>1</sub> = ${p.v1f.toFixed(2)} m/s; &nbsp; &theta;'<sub>1</sub> = ${(p.a1f*180/Math.PI).toFixed(1)}&deg;
-                </div>` : `
+                ${p.type === 'inelastic' ? `
                 <div class="p-3 bg-slate-100 border border-slate-300 rounded-lg shadow-sm">
                     <p class="font-bold text-slate-700 underline uppercase text-sm mb-1">Collision Type</p>
                     Perfectly Inelastic (Stuck together)
+                </div>` : `
+                <div class="p-3 bg-amber-50 border border-amber-300 rounded-lg shadow-sm">
+                    <p class="font-bold text-amber-700 underline uppercase text-sm mb-1">Output Data</p>
+                    <span class="text-red-700">${out1Text}</span><br>
+                    <span class="text-blue-700">${out2Text}</span>
                 </div>`}
             `;
         }
@@ -250,38 +295,61 @@
             if(!p) return;
 
             if(currentStep === 1) {
-                stepText.textContent = "Step 1: Identification of Magnitudes";
                 btnNext.textContent = "Step 2. Determine components";
-                updateDataPanel();
                 
+                let p1Text = `m<sub>1</sub> = ${p.m1} kg; v<sub>1</sub> = ${p.v1} m/s; &theta;<sub>1</sub> = ${p.a1}&deg;`;
+                let p2Text = `m<sub>2</sub> = ${p.m2} kg; v<sub>2</sub> = ${p.v2} m/s; &theta;<sub>2</sub> = ${p.a2}&deg;`;
+                let outText = `v'<sub>1</sub> = ${p.v1f.toFixed(2)}; &theta;'<sub>1</sub> = ${toDeg(p.a1f)}&deg; | v'<sub>2</sub> = ${p.v2f.toFixed(2)}; &theta;'<sub>2</sub> = ${toDeg(p.a2f)}&deg;`;
+                
+                if (p.type === 'forense') p2Text = `m<sub>2</sub> = ${p.m2} kg; v<sub>2</sub> = <b>?</b>; &theta;<sub>2</sub> = <b>?</b>`;
+                if (p.type === 'angulos') outText = `v'<sub>1</sub> = <b>?</b>; &theta;'<sub>1</sub> = ${toDeg(p.a1f)}&deg; | v'<sub>2</sub> = <b>?</b>; &theta;'<sub>2</sub> = ${toDeg(p.a2f)}&deg;`;
+                if (p.type === 'masa') p2Text = `m<sub>2</sub> = <b>?</b>; v<sub>2</sub> = ${p.v2} m/s; &theta;<sub>2</sub> = ${p.a2}&deg;`;
+                if (p.type === 'masa_comp') {
+                    p2Text = `m<sub>2</sub> = <b>?</b>; v<sub>2</sub> = ${p.v2} m/s; &theta;<sub>2</sub> = ${p.a2}&deg;`;
+                    outText = `v'<sub>1</sub> = ${p.v1f.toFixed(2)}; &theta;'<sub>1</sub> = ${toDeg(p.a1f)}&deg; | v'<sub>2x</sub> = <b>?</b>; v'<sub>2y</sub> = ${p.v2fy.toFixed(2)} m/s`;
+                }
+                if (p.type === 'base') outText = `v'<sub>1</sub> = ${p.v1f.toFixed(2)}; &theta;'<sub>1</sub> = ${toDeg(p.a1f)}&deg; | v'<sub>2</sub> = <b>?</b>; &theta;'<sub>2</sub> = <b>?</b>`;
+
                 let datosHtml = `
                     <div class="math-font">
-                        m<sub>1</sub> = ${p.m1} kg; &nbsp; v<sub>1</sub> = ${p.v1} m/s; &nbsp; &theta;<sub>1</sub> = ${p.a1}&deg;<br>
-                        m<sub>2</sub> = ${p.m2} kg; &nbsp; v<sub>2</sub> = ${p.v2} m/s; &nbsp; &theta;<sub>2</sub> = ${p.a2}&deg;<br>
-                        ${p.type === 'elastic' ? `v'<sub>1</sub> = ${p.v1f.toFixed(2)} m/s; &nbsp; &theta;'<sub>1</sub> = ${(p.a1f*180/Math.PI).toFixed(1)}&deg;` : `Collision type: Inelastic`}
-                    </div>
-                `;
+                        ${p1Text}<br>${p2Text}<br>
+                        ${p.type === 'inelastic' ? `Collision type: Inelastic` : outText}
+                    </div>`;
                 addAlgebra("STEP 1: DATA REGISTRATION", datosHtml);
             }
 
             if(currentStep === 2) {
-                stepText.textContent = "Step 2: Trigonometric Analysis";
                 btnNext.textContent = "Step 3. Momentum Conservation";
                 
+                let v1x = `v<sub>1</sub> &middot; cos(${p.a1}&deg;) = <b>${p.v1x.toFixed(3)}</b>`;
+                let v1y = `v<sub>1</sub> &middot; sin(${p.a1}&deg;) = <b>${p.v1y.toFixed(3)}</b>`;
+                let v2x = `v<sub>2</sub> &middot; cos(${p.a2}&deg;) = <b>${p.v2x.toFixed(3)}</b>`;
+                let v2y = `v<sub>2</sub> &middot; sin(${p.a2}&deg;) = <b>${p.v2y.toFixed(3)}</b>`;
+                let v1fx = `v'<sub>1</sub> &middot; cos(${toDeg(p.a1f)}&deg;) = <b>${p.v1fx.toFixed(3)}</b>`;
+                let v1fy = `v'<sub>1</sub> &middot; sin(${toDeg(p.a1f)}&deg;) = <b>${p.v1fy.toFixed(3)}</b>`;
+                let v2fx = `v'<sub>2</sub> &middot; cos(${toDeg(p.a2f)}&deg;) = <b>${p.v2fx.toFixed(3)}</b>`;
+                let v2fy = `v'<sub>2</sub> &middot; sin(${toDeg(p.a2f)}&deg;) = <b>${p.v2fy.toFixed(3)}</b>`;
+
+                if(p.type === 'forense') { v2x = `<b>?</b> (Unknown)`; v2y = `<b>?</b> (Unknown)`; }
+                if(p.type === 'angulos') { 
+                    v1fx = `v'<sub>1</sub> &middot; cos(${toDeg(p.a1f)}&deg;)`; v1fy = `v'<sub>1</sub> &middot; sin(${toDeg(p.a1f)}&deg;)`;
+                    v2fx = `v'<sub>2</sub> &middot; cos(${toDeg(p.a2f)}&deg;)`; v2fy = `v'<sub>2</sub> &middot; sin(${toDeg(p.a2f)}&deg;)`;
+                }
+                if(p.type === 'masa_comp') { v2fx = `<b>?</b> (Unknown)`; }
+                if(p.type === 'base') { v2fx = `<b>?</b> (Unknown)`; v2fy = `<b>?</b> (Unknown)`; }
+
                 const mathStep = `
                     <div class="space-y-4 math-font">
                         <div>
                             <p class="text-indigo-400 font-bold mb-1 underline text-sm">INITIAL:</p>
-                            v<sub>1x</sub> = v<sub>1</sub> &middot; cos(&theta;<sub>1</sub>) = ${p.v1} &middot; cos(${p.a1}&deg;) = <b>${p.v1x.toFixed(3)} m/s</b><br>
-                            v<sub>1y</sub> = v<sub>1</sub> &middot; sin(&theta;<sub>1</sub>) = ${p.v1} &middot; sin(${p.a1}&deg;) = <b>${p.v1y.toFixed(3)} m/s</b><br><br>
-                            v<sub>2x</sub> = v<sub>2</sub> &middot; cos(&theta;<sub>2</sub>) = ${p.v2} &middot; cos(${p.a2}&deg;) = <b>${p.v2x.toFixed(3)} m/s</b><br>
-                            v<sub>2y</sub> = v<sub>2</sub> &middot; sin(&theta;<sub>2</sub>) = ${p.v2} &middot; sin(${p.a2}&deg;) = <b>${p.v2y.toFixed(3)} m/s</b>
+                            v<sub>1x</sub> = ${v1x}<br>v<sub>1y</sub> = ${v1y}<br>
+                            v<sub>2x</sub> = ${v2x}<br>v<sub>2y</sub> = ${v2y}
                         </div>
-                        ${p.type === 'elastic' ? `
+                        ${p.type !== 'inelastic' ? `
                         <div class="pt-2 border-t border-slate-700">
-                            <p class="text-amber-400 font-bold mb-1 underline text-sm">FINAL (Particle 1):</p>
-                            v'<sub>1x</sub> = v'<sub>1</sub> &middot; cos(&theta;'<sub>1</sub>) = ${p.v1f.toFixed(2)} &middot; cos(${(p.a1f*180/Math.PI).toFixed(1)}&deg;) = <b>${p.v1fx.toFixed(3)} m/s</b><br>
-                            v'<sub>1y</sub> = v'<sub>1</sub> &middot; sin(&theta;'<sub>1</sub>) = ${p.v1f.toFixed(2)} &middot; sin(${(p.a1f*180/Math.PI).toFixed(1)}&deg;) = <b>${p.v1fy.toFixed(3)} m/s</b>
+                            <p class="text-amber-400 font-bold mb-1 underline text-sm">FINAL:</p>
+                            v'<sub>1x</sub> = ${v1fx}<br>v'<sub>1y</sub> = ${v1fy}<br>
+                            v'<sub>2x</sub> = ${v2fx}<br>v'<sub>2y</sub> = ${v2fy}
                         </div>` : ''}
                     </div>
                 `;
@@ -289,69 +357,120 @@
             }
 
             if(currentStep === 3) {
-                stepText.textContent = "Step 3: Conservation of p";
-                btnNext.textContent = "Step 4. Result of Particle 2";
+                btnNext.textContent = "Step 4. Resolution of Unknowns";
                 
-                let eqVectorial = p.type === 'elastic' 
-                    ? `m<sub>1</sub><span class="vec">v</span><sub>1</sub> + m<sub>2</sub><span class="vec">v</span><sub>2</sub> = m<sub>1</sub><span class="vec">v</span>'<sub>1</sub> + m<sub>2</sub><span class="vec">v</span>'<sub>2</sub>`
-                    : `m<sub>1</sub><span class="vec">v</span><sub>1</sub> + m<sub>2</sub><span class="vec">v</span><sub>2</sub> = (m<sub>1</sub> + m<sub>2</sub>)<span class="vec">v</span>'`;
+                let eqVectorial = p.type === 'inelastic' 
+                    ? `m<sub>1</sub><span class="vec">v</span><sub>1</sub> + m<sub>2</sub><span class="vec">v</span><sub>2</sub> = (m<sub>1</sub> + m<sub>2</sub>)<span class="vec">v</span>'`
+                    : `m<sub>1</sub><span class="vec">v</span><sub>1</sub> + m<sub>2</sub><span class="vec">v</span><sub>2</sub> = m<sub>1</sub><span class="vec">v</span>'<sub>1</sub> + m<sub>2</sub><span class="vec">v</span>'<sub>2</sub>`;
 
-                let eqX = p.type === 'elastic'
-                    ? `m<sub>1</sub>v<sub>1x</sub> + m<sub>2</sub>v<sub>2x</sub> = m<sub>1</sub>v'<sub>1x</sub> + m<sub>2</sub>v'<sub>2x</sub><br>
-                       (${p.m1} &middot; ${p.v1x.toFixed(2)}) + (${p.m2} &middot; ${p.v2x.toFixed(2)}) = (${p.m1} &middot; ${p.v1fx.toFixed(2)}) + ${p.m2}v'<sub>2x</sub><br>
-                       <b>${p.ptx.toFixed(2)} = ${(p.m1 * p.v1fx).toFixed(2)} + ${p.m2}v'<sub>2x</sub></b>`
-                    : `m<sub>1</sub>v<sub>1x</sub> + m<sub>2</sub>v<sub>2x</sub> = (m<sub>1</sub> + m<sub>2</sub>)v'<sub>x</sub><br>
-                       (${p.m1} &middot; ${p.v1x.toFixed(2)}) + (${p.m2} &middot; ${p.v2x.toFixed(2)}) = (${p.m1} + ${p.m2})v'<sub>x</sub><br>
-                       <b>${p.ptx.toFixed(2)} = ${p.m1 + p.m2}v'<sub>x</sub></b>`;
+                let eqX = "", eqY = "";
+                
+                if (p.type === 'base') {
+                    eqX = `(${p.m1} &middot; ${p.v1x.toFixed(2)}) + (${p.m2} &middot; ${p.v2x.toFixed(2)}) = (${p.m1} &middot; ${p.v1fx.toFixed(2)}) + ${p.m2}v'<sub>2x</sub><br><b>${p.ptx.toFixed(2)} = ${(p.m1 * p.v1fx).toFixed(2)} + ${p.m2}v'<sub>2x</sub></b>`;
+                    eqY = `(${p.m1} &middot; ${p.v1y.toFixed(2)}) + (${p.m2} &middot; ${p.v2y.toFixed(2)}) = (${p.m1} &middot; ${p.v1fy.toFixed(2)}) + ${p.m2}v'<sub>2y</sub><br><b>${p.pty.toFixed(2)} = ${(p.m1 * p.v1fy).toFixed(2)} + ${p.m2}v'<sub>2y</sub></b>`;
+                } else if (p.type === 'forense') {
+                    let ptxFinal = p.m1 * p.v1fx + p.m2 * p.v2fx;
+                    let ptyFinal = p.m1 * p.v1fy + p.m2 * p.v2fy;
+                    eqX = `(${p.m1} &middot; ${p.v1x.toFixed(2)}) + ${p.m2}v<sub>2x</sub> = (${p.m1} &middot; ${p.v1fx.toFixed(2)}) + (${p.m2} &middot; ${p.v2fx.toFixed(2)})<br><b>${(p.m1 * p.v1x).toFixed(2)} + ${p.m2}v<sub>2x</sub> = ${ptxFinal.toFixed(2)}</b>`;
+                    eqY = `(${p.m1} &middot; ${p.v1y.toFixed(2)}) + ${p.m2}v<sub>2y</sub> = (${p.m1} &middot; ${p.v1fy.toFixed(2)}) + (${p.m2} &middot; ${p.v2fy.toFixed(2)})<br><b>${(p.m1 * p.v1y).toFixed(2)} + ${p.m2}v<sub>2y</sub> = ${ptyFinal.toFixed(2)}</b>`;
+                } else if (p.type === 'angulos') {
+                    eqX = `<b>${p.ptx.toFixed(2)}</b> = (${p.m1} &middot; cos(${toDeg(p.a1f)}&deg;))v'<sub>1</sub> + (${p.m2} &middot; cos(${toDeg(p.a2f)}&deg;))v'<sub>2</sub><br>
+                           ${p.ptx.toFixed(2)} = ${(p.m1 * Math.cos(p.a1f)).toFixed(3)}v'<sub>1</sub> + ${(p.m2 * Math.cos(p.a2f)).toFixed(3)}v'<sub>2</sub>`;
+                    eqY = `<b>${p.pty.toFixed(2)}</b> = (${p.m1} &middot; sin(${toDeg(p.a1f)}&deg;))v'<sub>1</sub> + (${p.m2} &middot; sin(${toDeg(p.a2f)}&deg;))v'<sub>2</sub><br>
+                           ${p.pty.toFixed(2)} = ${(p.m1 * Math.sin(p.a1f)).toFixed(3)}v'<sub>1</sub> + ${(p.m2 * Math.sin(p.a2f)).toFixed(3)}v'<sub>2</sub>`;
+                } else if (p.type === 'masa') {
+                    eqX = `(${p.m1} &middot; ${p.v1x.toFixed(2)}) + m<sub>2</sub>(${p.v2x.toFixed(2)}) = (${p.m1} &middot; ${p.v1fx.toFixed(2)}) + m<sub>2</sub>(${p.v2fx.toFixed(2)})<br><b>${(p.m1*p.v1x).toFixed(2)} + ${p.v2x.toFixed(2)}m<sub>2</sub> = ${(p.m1*p.v1fx).toFixed(2)} + ${p.v2fx.toFixed(2)}m<sub>2</sub></b>`;
+                    eqY = `(${p.m1} &middot; ${p.v1y.toFixed(2)}) + m<sub>2</sub>(${p.v2y.toFixed(2)}) = (${p.m1} &middot; ${p.v1fy.toFixed(2)}) + m<sub>2</sub>(${p.v2fy.toFixed(2)})`;
+                } else if (p.type === 'masa_comp') {
+                    eqX = `(${p.m1} &middot; ${p.v1x.toFixed(2)}) + m<sub>2</sub>(${p.v2x.toFixed(2)}) = (${p.m1} &middot; ${p.v1fx.toFixed(2)}) + m<sub>2</sub>v'<sub>2x</sub>`;
+                    eqY = `(${p.m1} &middot; ${p.v1y.toFixed(2)}) + m<sub>2</sub>(${p.v2y.toFixed(2)}) = (${p.m1} &middot; ${p.v1fy.toFixed(2)}) + m<sub>2</sub>(${p.v2fy.toFixed(2)})`;
+                } else if (p.type === 'inelastic') {
+                    eqX = `<b>${p.ptx.toFixed(2)} = ${p.m1 + p.m2}v'<sub>x</sub></b>`;
+                    eqY = `<b>${p.pty.toFixed(2)} = ${p.m1 + p.m2}v'<sub>y</sub></b>`;
+                }
 
-                let eqY = p.type === 'elastic'
-                    ? `m<sub>1</sub>v<sub>1y</sub> + m<sub>2</sub>v<sub>2y</sub> = m<sub>1</sub>v'<sub>1y</sub> + m<sub>2</sub>v'<sub>2y</sub><br>
-                       (${p.m1} &middot; ${p.v1y.toFixed(2)}) + (${p.m2} &middot; ${p.v2y.toFixed(2)}) = (${p.m1} &middot; ${p.v1fy.toFixed(2)}) + ${p.m2}v'<sub>2y</sub><br>
-                       <b>${p.pty.toFixed(2)} = ${(p.m1 * p.v1fy).toFixed(2)} + ${p.m2}v'<sub>2y</sub></b>`
-                    : `m<sub>1</sub>v<sub>1y</sub> + m<sub>2</sub>v<sub>2y</sub> = (m<sub>1</sub> + m<sub>2</sub>)v'<sub>y</sub><br>
-                       (${p.m1} &middot; ${p.v1y.toFixed(2)}) + (${p.m2} &middot; ${p.v2y.toFixed(2)}) = (${p.m1} + ${p.m2})v'<sub>y</sub><br>
-                       <b>${p.pty.toFixed(2)} = ${p.m1 + p.m2}v'<sub>y</sub></b>`;
-
-                addAlgebra("STEP 3: PRINCIPLE OF CONSERVATION OF LINEAR MOMENTUM", `
+                addAlgebra("STEP 3: SYSTEM OF EQUATIONS", `
                     <div class="math-font">
-                        <p class="mb-3 text-slate-300">In an isolated system, linear momentum is conserved:</p>
                         <div class="text-center mb-5 text-indigo-300 font-bold bg-slate-900/50 py-3 rounded">
                             <span class="vec">p</span><sub>initial</sub> = <span class="vec">p</span><sub>final</sub><br>
                             ${eqVectorial}
                         </div>
-                        <p class="mb-3 text-slate-300">Decomposing into Cartesian axes:</p>
-                        <p class="text-indigo-400 font-bold mb-1 underline text-sm">ALONG THE X AXIS:</p>
+                        <p class="text-indigo-400 font-bold mb-1 underline text-sm">X AXIS:</p>
                         ${eqX}<br><br>
-                        <p class="text-indigo-400 font-bold mb-1 underline text-sm">ALONG THE Y AXIS:</p>
+                        <p class="text-indigo-400 font-bold mb-1 underline text-sm">Y AXIS:</p>
                         ${eqY}
                     </div>
                 `);
             }
 
             if(currentStep === 4) {
-                stepText.textContent = "Step 4: Unknown resolved";
                 btnNext.textContent = "Completed";
                 btnNext.disabled = true;
+                btnPlay.disabled = false;
                 
                 let finalHtml = "";
-                if(p.type === 'elastic') {
+                if(p.type === 'base') {
                     finalHtml = `
                     <div class="math-font">
-                        v'<sub>2x</sub> = (${p.ptx.toFixed(2)} - ${(p.m1 * p.v1fx).toFixed(2)}) / ${p.m2} = <b>${p.v2fx.toFixed(2)} m/s</b><br><br>
+                        v'<sub>2x</sub> = (${p.ptx.toFixed(2)} - ${(p.m1 * p.v1fx).toFixed(2)}) / ${p.m2} = <b>${p.v2fx.toFixed(2)} m/s</b><br>
                         v'<sub>2y</sub> = (${p.pty.toFixed(2)} - ${(p.m1 * p.v1fy).toFixed(2)}) / ${p.m2} = <b>${p.v2fy.toFixed(2)} m/s</b><br><br>
                         <span class="text-indigo-400 font-bold">v'<sub>2</sub> = &radic;(v'<sub>2x</sub>&sup2; + v'<sub>2y</sub>&sup2;) = ${p.v2f.toFixed(2)} m/s</span><br>
-                        <span class="text-indigo-400 font-bold">&theta;'<sub>2</sub> = arctan(v'<sub>2y</sub> / v'<sub>2x</sub>) = ${(p.a2f*180/Math.PI).toFixed(1)}&deg;</span>
+                        <span class="text-indigo-400 font-bold">&theta;'<sub>2</sub> = arctan(v'<sub>2y</sub> / v'<sub>2x</sub>) = ${toDeg(p.a2f)}&deg;</span>
                     </div>`;
-                } else {
+                } else if(p.type === 'forense') {
+                    let ptxFinal = p.m1 * p.v1fx + p.m2 * p.v2fx;
+                    let ptyFinal = p.m1 * p.v1fy + p.m2 * p.v2fy;
+                    finalHtml = `
+                    <div class="math-font text-emerald-400">
+                        v<sub>2x</sub> = (${ptxFinal.toFixed(2)} - ${(p.m1 * p.v1x).toFixed(2)}) / ${p.m2} = <b>${p.v2x.toFixed(2)} m/s</b><br>
+                        v<sub>2y</sub> = (${ptyFinal.toFixed(2)} - ${(p.m1 * p.v1y).toFixed(2)}) / ${p.m2} = <b>${p.v2y.toFixed(2)} m/s</b><br><br>
+                        <span class="text-emerald-300 font-bold">v<sub>2</sub> = &radic;(v<sub>2x</sub>&sup2; + v<sub>2y</sub>&sup2;) = ${p.v2} m/s</span><br>
+                        <span class="text-emerald-300 font-bold">&theta;<sub>2</sub> = arctan(v<sub>2y</sub> / v<sub>2x</sub>) = ${p.a2}&deg;</span>
+                    </div>`;
+                } else if(p.type === 'angulos') {
+                    finalHtml = `
+                    <div class="math-font text-amber-400">
+                        <p class="mb-2 text-slate-300 text-sm">Solving the 2x2 system (e.g., by substitution):</p>
+                        <span class="font-bold text-lg">v'<sub>1</sub> = ${p.v1f.toFixed(2)} m/s</span><br>
+                        <span class="font-bold text-lg">v'<sub>2</sub> = ${p.v2f.toFixed(2)} m/s</span>
+                    </div>`;
+                } else if(p.type === 'masa') {
+                    let termX_v2 = p.v2x - p.v2fx;
+                    let termX_v1 = p.m1 * p.v1fx - p.m1 * p.v1x;
+                    finalHtml = `
+                    <div class="math-font text-purple-400">
+                        <p class="mb-2 text-slate-300 text-sm">Grouping m<sub>2</sub> on the X axis:</p>
+                        m<sub>2</sub> &middot; (${p.v2x.toFixed(2)} - ${p.v2fx.toFixed(2)}) = ${(p.m1 * p.v1fx).toFixed(2)} - ${(p.m1 * p.v1x).toFixed(2)}<br>
+                        m<sub>2</sub> &middot; (${termX_v2.toFixed(2)}) = ${termX_v1.toFixed(2)}<br><br>
+                        <span class="font-bold text-lg">m<sub>2</sub> = ${p.m2} kg</span>
+                    </div>`;
+                } else if(p.type === 'masa_comp') {
+                    let termY_v2 = p.v2y - p.v2fy;
+                    let termY_v1 = p.m1 * p.v1fy - p.m1 * p.v1y;
+                    finalHtml = `
+                    <div class="math-font text-purple-400">
+                        <p class="mb-2 text-slate-300 text-sm">1. Solve for m<sub>2</sub> on the Y Axis:</p>
+                        m<sub>2</sub> &middot; (${p.v2y.toFixed(2)} - ${p.v2fy.toFixed(2)}) = ${(p.m1 * p.v1fy).toFixed(2)} - ${(p.m1 * p.v1y).toFixed(2)}<br>
+                        m<sub>2</sub> &middot; (${termY_v2.toFixed(2)}) = ${termY_v1.toFixed(2)} &rarr; <span class="font-bold">m<sub>2</sub> = ${p.m2} kg</span><br><br>
+                        
+                        <p class="mb-2 text-slate-300 text-sm">2. Substitute m<sub>2</sub> into the X Axis:</p>
+                        ${(p.m1 * p.v1x).toFixed(2)} + ${p.m2}(${p.v2x.toFixed(2)}) = ${(p.m1 * p.v1fx).toFixed(2)} + ${p.m2}v'<sub>2x</sub><br>
+                        v'<sub>2x</sub> = (${p.ptx.toFixed(2)} - ${(p.m1 * p.v1fx).toFixed(2)}) / ${p.m2} = <b>${p.v2fx.toFixed(2)} m/s</b><br><br>
+                        
+                        <span class="text-emerald-300 font-bold">v'<sub>2</sub> = &radic;(v'<sub>2x</sub>&sup2; + v'<sub>2y</sub>&sup2;) = ${p.v2f.toFixed(2)} m/s</span><br>
+                        <span class="text-emerald-300 font-bold">&theta;'<sub>2</sub> = arctan(v'<sub>2y</sub> / v'<sub>2x</sub>) = ${toDeg(p.a2f)}&deg;</span>
+                    </div>`;
+                } else if(p.type === 'inelastic') {
                     finalHtml = `
                     <div class="math-font text-emerald-400 font-bold">
                         v'<sub>x</sub> = ${p.ptx.toFixed(2)} / ${p.m1 + p.m2} = ${p.v1fx.toFixed(2)} m/s<br>
                         v'<sub>y</sub> = ${p.pty.toFixed(2)} / ${p.m1 + p.m2} = ${p.v1fy.toFixed(2)} m/s<br><br>
                         v'<sub>common</sub> = &radic;(v'<sub>x</sub>&sup2; + v'<sub>y</sub>&sup2;) = ${p.v1f.toFixed(2)} m/s<br>
-                        &theta;'<sub>common</sub> = arctan(v'<sub>y</sub> / v'<sub>x</sub>) = ${(p.a1f*180/Math.PI).toFixed(1)}&deg;
+                        &theta;'<sub>common</sub> = arctan(v'<sub>y</sub> / v'<sub>x</sub>) = ${toDeg(p.a1f)}&deg;
                     </div>`;
                 }
-                addAlgebra("STEP 4: FINAL CALCULATION FOR PARTICLE 2", finalHtml);
+                
+                addAlgebra("STEP 4: FINAL CALCULATION", finalHtml);
             }
             
             if(!isSimulating) drawStatic();
